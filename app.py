@@ -8,9 +8,8 @@ import streamlit as st
 from openai import OpenAI
 
 # ---------- Secrets & config ----------
-# Clé lue depuis Streamlit Secrets (paramètres > Secrets), pas dans le code public
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
-OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")  # change si tu veux
+OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
 ADMIN_CODE = st.secrets.get("ADMIN_CODE", "pam2025")
 
 if not OPENAI_API_KEY:
@@ -33,8 +32,7 @@ SYSTEM_PROMPT = (
     "Si une question sort de ton périmètre, tu le dis et tu proposes une reformulation utile."
 )
 
-# ---------- Mini corpus de départ (tu peux l’étoffer) ----------
-# Astuce : plus tard, remplace ce corpus par un petit dossier de .md ou .txt
+# ---------- Mini corpus ----------
 CORPUS = [
     {
         "source": "10_piliers_intro",
@@ -62,7 +60,6 @@ CORPUS = [
 # ---------- Embeddings & recherche ----------
 @st.cache_data(show_spinner=False)
 def embed_texts(texts):
-    # Transforme une liste de textes en vecteurs
     resp = client.embeddings.create(
         model="text-embedding-3-small",
         input=texts
@@ -81,7 +78,6 @@ def embed_query(q):
 def top_k_context(query, k=3):
     M = corpus_matrix()
     qv = embed_query(query)
-    # cosine similarity
     sims = (M @ qv) / (np.linalg.norm(M, axis=1) * np.linalg.norm(qv) + 1e-9)
     idxs = np.argsort(-sims)[:k]
     ctx = []
@@ -103,8 +99,9 @@ st.set_page_config(page_title="Assistant Pamela", page_icon="💬", layout="cent
 st.title("💬 Assistant Pamela")
 
 # Param admin dans l'URL : ?admin=pam2025
-query_params = st.experimental_get_query_params()
-is_admin = (query_params.get("admin", [""])[0] == ADMIN_CODE)
+# ❗ Nouvelle API : remplace st.experimental_get_query_params()
+admin_val = st.query_params.get("admin", "")
+is_admin = (admin_val == ADMIN_CODE)
 
 with st.expander("À propos / mode d'emploi", expanded=False):
     st.write(
@@ -125,7 +122,6 @@ if go:
         st.stop()
 
     with st.spinner("Je réfléchis…"):
-        # Récup du contexte
         context = top_k_context(question, k=k_ctx)
 
         messages = [
@@ -152,7 +148,7 @@ if go:
     st.markdown("### Réponse")
     st.write(answer)
 
-    # Log
+    # Log (tolérant si écriture interdite)
     try:
         log_chat(email, question, answer)
         st.caption("✅ Échange enregistré (local) dans data/chat_logs.csv")
