@@ -1,67 +1,91 @@
-# app.py — Assistant Pamela (IA simplifiée)
-
-import os, csv, datetime
+# app.py
+import os
+import time
+import pathlib
+import pandas as pd
 import streamlit as st
+from datetime import datetime
 from openai import OpenAI
 
-st.set_page_config(page_title="Assistant Pamela", page_icon="🧠", layout="centered")
+# --------- Réglages de base ----------
+st.set_page_config(page_title="Assistant Pamela", page_icon="💬", layout="centered")
 
-# --- OpenAI client : on lit la clé depuis Streamlit Secrets OU variable d'env ---
-api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-if not api_key:
-    st.error("Clé OpenAI manquante. Ajoute OPENAI_API_KEY dans 'Secrets' Streamlit.")
-    st.stop()
-client = OpenAI(api_key=api_key)
-
-# --- Persona : tu peux l'ajuster librement ---
 SYSTEM_PROMPT = """
-Tu es l'assistant cognitif de Pamela Magotte.
-Style : optimiste, humble, tourné vers l’avenir. Ton langage est naturel et professionnel.
-Cadre : pensée systémique, 10 patterns universels du vivant, science et conscience.
-Réponds de façon claire, structurée et actionnable. Si une info manque, dis-le simplement.
+Tu es l’assistant de Pamela Magotte. Tu t’exprimes simplement et avec bienveillance.
+Tu relies les questions aux thèmes : pensée systémique, patterns (motifs récurrents), pleine conscience.
+Tu proposes des pistes concrètes, structurées, applicables au management.
+Quand c’est pertinent, tu poses 1 question courte pour clarifier avant de répondre longuement.
 """
 
-def ask_llm(question: str) -> str:
-    # Modèle : mini et économique ; tu peux changer plus tard
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        temperature=0.3,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": question.strip()},
-        ],
-    )
-    return resp.choices[0].message.content
+MODEL = "gpt-5-mini"  # tu peux mettre "gpt-5" si ton quota le permet
 
-def log_interaction(email, question, answer):
-    try:
-        os.makedirs("data", exist_ok=True)
-        p = "data/chat_logs.csv"
-        new_file = not os.path.exists(p)
-        with open(p, "a", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            if new_file:
-                w.writerow(["ts_utc", "email", "question", "answer"])
-            w.writerow([datetime.datetime.utcnow().isoformat(), email or "", question, answer])
-    except Exception:
-        pass  # en prod simple : on ignore les erreurs de log
+# --------- API OpenAI ----------
+# Clé lue depuis les "secrets" Streamlit Cloud (Settings > Secrets) -> OPENAI_API_KEY="sk-proj-..."
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", "")
+if not OPENAI_API_KEY:
+    st.error("La clé OPENAI_API_KEY n'est pas configurée (Settings > Secrets).")
+    st.stop()
 
-st.title("Assistant Pamela (IA)")
-email = st.text_input("Votre e-mail (facultatif)")
-question = st.text_area(
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# --------- Dossier des logs ----------
+LOG_DIR = pathlib.Path("data")
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "chat_logs.csv"
+
+def append_log(email, question, answer):
+    row = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "email": email.strip(),
+        "question": question.strip(),
+        "answer": answer.strip(),
+    }
+    if LOG_FILE.exists():
+        df = pd.read_csv(LOG_FILE)
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    else:
+        df = pd.DataFrame([row])
+    df.to_csv(LOG_FILE, index=False)
+
+# --------- UI ----------
+st.markdown("### 💬 Assistant Pamela (démo en ligne)")
+email = st.text_input("Votre e-mail (facultatif)", placeholder="prenom.nom@email.com")
+
+question = st.text_input(
     "Posez votre question :",
-    placeholder="Ex : Comment les 10 patterns s’appliquent au management ?",
-    height=140,
+    placeholder="Ex : Comment les 10 patterns s’appliquent au management ?"
 )
 
-if st.button("Répondre", type="primary"):
-    if not question.strip():
-        st.warning("Écris une question 😉")
-        st.stop()
-    with st.spinner("Je réfléchis…"):
-        answer = ask_llm(question)
-    st.markdown("### Réponse")
-    st.write(answer)
-    log_interaction(email, question, answer)
+ctx = st.slider("Nombre de passages (contexte)", min_value=1, max_value=5, value=3)
 
-st.caption("Démonstration : les échanges sont enregistrés localement (data/chat_logs.csv).")
+if st.button("Rechercher"):
+
+    if not question.strip():
+        st.warning("Écris d’abord une question 🙂")
+        st.stop()
+
+    with st.spinner("Je réfléchis…"):
+        try:
+            # historique minimal (pas de RAG ici, simple chat)
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": question},
+            ]
+
+            resp = client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                temperature=0.6,
+            )
+            answer = resp.choices[0].message.content
+
+            st.markdown("#### Réponse")
+            st.write(answer)
+
+            append_log(email, question, answer)
+
+            st.caption("Les échanges sont enregistrés dans `data/chat_logs.csv`.")
+
+        except Exception as e:
+            st.error(f"Oups : {e}")
+
