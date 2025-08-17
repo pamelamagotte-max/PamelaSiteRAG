@@ -1,4 +1,4 @@
-# 03_app_streamlit.py — Version ultra-légère (pas d'install lourde)
+# streamlit_app.py — Version ultra-légère (pas d'install lourde)
 import streamlit as st
 import json, os, datetime, csv
 
@@ -128,3 +128,4 @@ if st.button("Rechercher") and q.strip():
     log_interaction(email, q, answer, hits)
 
 st.caption("Démo locale très légère (sans install d'IA). Les échanges sont enregistrés dans data/chat_logs.csv. Ajoute ?admin=pam2025 à l'URL pour voir l'historique.")
+
