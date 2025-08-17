@@ -56,6 +56,12 @@ CORPUS = [
         ),
     },
 ]
+# Map des sources -> URLs de tes articles
+SOURCE_LINKS = {
+    "10_piliers_intro": "https://ton-site/article-10-piliers",
+    "pleine_conscience_base": "https://ton-site/article-pleine-conscience",
+    "management_pattern": "https://ton-site/article-management-patterns",
+}
 
 # ---------- Embeddings & recherche ----------
 @st.cache_data(show_spinner=False)
@@ -166,4 +172,5 @@ if is_admin:
             st.download_button("Télécharger les logs (CSV)", f, file_name="chat_logs.csv")
     else:
         st.info("Pas encore de logs.")
+
 
