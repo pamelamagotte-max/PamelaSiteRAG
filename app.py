@@ -56,7 +56,8 @@ CORPUS = [
         ),
     },
 ]
-# Map des sources -> URLs de tes articles
+
+# Map des sources -> URLs de tes articles (remplace par les liens réels)
 SOURCE_LINKS = {
     "10_piliers_intro": "https://ton-site/article-10-piliers",
     "pleine_conscience_base": "https://ton-site/article-pleine-conscience",
@@ -66,6 +67,7 @@ SOURCE_LINKS = {
 # ---------- Embeddings & recherche ----------
 @st.cache_data(show_spinner=False)
 def embed_texts(texts):
+    # Transforme une liste de textes en vecteurs
     resp = client.embeddings.create(
         model="text-embedding-3-small",
         input=texts
@@ -82,14 +84,20 @@ def embed_query(q):
     return np.array(r.data[0].embedding, dtype=float)
 
 def top_k_context(query, k=3):
+    """Retourne (contexte_concaténé, liste_des_sources_utilisées)"""
     M = corpus_matrix()
     qv = embed_query(query)
+    # cosine similarity
     sims = (M @ qv) / (np.linalg.norm(M, axis=1) * np.linalg.norm(qv) + 1e-9)
     idxs = np.argsort(-sims)[:k]
-    ctx = []
+
+    ctx_parts, used_sources = [], []
     for i in idxs:
-        ctx.append(f"[{CORPUS[i]['source']}] {CORPUS[i]['text']}")
-    return "\n\n".join(ctx)
+        src = CORPUS[i]['source']
+        used_sources.append(src)
+        ctx_parts.append(f"[{src}] {CORPUS[i]['text']}")
+
+    return "\n\n".join(ctx_parts), used_sources
 
 # ---------- Log ----------
 def log_chat(email, question, answer):
@@ -105,7 +113,7 @@ st.set_page_config(page_title="Assistant Pamela", page_icon="💬", layout="cent
 st.title("💬 Assistant Pamela")
 
 # Param admin dans l'URL : ?admin=pam2025
-# ❗ Nouvelle API : remplace st.experimental_get_query_params()
+# (Nouvelle API Streamlit : st.query_params)
 admin_val = st.query_params.get("admin", "")
 is_admin = (admin_val == ADMIN_CODE)
 
@@ -115,7 +123,6 @@ with st.expander("À propos / mode d'emploi", expanded=False):
         "(pensée systémique, patterns, pleine conscience) et **fera le lien vers mes articles** dans ses réponses."
     )
     st.caption("Astuce : ajoutez `?admin=pam2025` à l’URL pour la vue admin (modifiable dans les Secrets).")
-
 
 email = st.text_input("Votre e-mail (facultatif)", placeholder="prenom.nom@email.com")
 question = st.text_area("Posez votre question", placeholder="Ex : Comment appliquer les 10 piliers à mon équipe ?")
@@ -129,7 +136,8 @@ if go:
         st.stop()
 
     with st.spinner("Je réfléchis…"):
-        context = top_k_context(question, k=k_ctx)
+        # Récup du contexte + liste des sources utilisées
+        context, used_sources = top_k_context(question, k=k_ctx)
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -154,6 +162,24 @@ if go:
 
     st.markdown("### Réponse")
     st.write(answer)
+
+    # 🔗 Affichage des sources citées avec liens (si dispo)
+    if used_sources:
+        st.markdown("#### 🔗 Sources citées / Aller plus loin")
+        # On garde l'ordre et enlève les doublons
+        seen = set()
+        ordered_unique = []
+        for s in used_sources:
+            if s not in seen:
+                seen.add(s)
+                ordered_unique.append(s)
+
+        for src in ordered_unique:
+            url = SOURCE_LINKS.get(src, "")
+            if url:
+                st.markdown(f"- **{src}** → [{url}]({url})")
+            else:
+                st.markdown(f"- **{src}**")
 
     # Log (tolérant si écriture interdite)
     try:
