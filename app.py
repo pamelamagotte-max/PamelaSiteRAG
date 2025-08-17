@@ -341,3 +341,4 @@ if is_admin:
             st.download_button("Télécharger les logs (CSV)", f, file_name="chat_logs.csv")
     else:
         st.info("Pas encore de logs.")
+
