@@ -105,10 +105,11 @@ is_admin = (admin_val == ADMIN_CODE)
 
 with st.expander("À propos / mode d'emploi", expanded=False):
     st.write(
-        "Posez une question. L’assistant mobilise un petit corpus (démo) + vos mots clés. "
-        "Les réponses suivent les principes de la pensée systémique, des patterns, et de la pleine conscience."
+        "Posez une question. Ce chatbot est configuré avec **ma logique** et **mon système de pensée** "
+        "(pensée systémique, patterns, pleine conscience) et **fera le lien vers mes articles** dans ses réponses."
     )
     st.caption("Astuce : ajoutez `?admin=pam2025` à l’URL pour la vue admin (modifiable dans les Secrets).")
+
 
 email = st.text_input("Votre e-mail (facultatif)", placeholder="prenom.nom@email.com")
 question = st.text_area("Posez votre question", placeholder="Ex : Comment appliquer les 10 piliers à mon équipe ?")
@@ -165,3 +166,4 @@ if is_admin:
             st.download_button("Télécharger les logs (CSV)", f, file_name="chat_logs.csv")
     else:
         st.info("Pas encore de logs.")
+
